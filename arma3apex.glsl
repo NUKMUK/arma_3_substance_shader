@@ -1,16 +1,16 @@
-// Tested with Substance 2.5.3.
+// Tested with Substance Painter, version 2018.3.2 Build 2768
 //
 // A preview GLSL shader for the "Super" shader. Written by IanBanks on the Bohemia
 // Interactive Forums.
 //
-// This shader may only be used within Allegorithmic 
+// This shader may only be used within Allegorithmic
 // products (https://www.allegorithmic.com/) for the purpose of producing assets
 // for use within games sold by Bohemia Interactive (https://www.bohemia.net/).
 //
 // The channels used are:
-// 
-//     Base Color (_co) [sRGB]
-//     Height (_nohq) [L]
+//
+//     Diffuse (_co) [sRGB]
+//     Normal (_nohq) [L]
 //     Specular level (_smdi) [L]
 //     Glossiness (_smdi) [L]
 //     User0 (Ambient Occlusion, _as green channel, Optional) [L]
@@ -82,8 +82,8 @@ uniform SamplerSparse specularlevel_tex;
 //: param auto channel_glossiness
 uniform SamplerSparse glossiness_tex;
 
-//: param auto channel_basecolor
-uniform SamplerSparse basecolor_tex;
+//: param auto channel_diffuse
+uniform SamplerSparse diffuse_tex;
 
 //: param auto channel_user0
 uniform SamplerSparse ambient_shadow_green_tex;
@@ -176,7 +176,7 @@ MapLighting getVbsMapLighting(vec4 diffuse, vec4 ambient, vec3 vbs_ground_reflec
 {
 	vec4 armaGroundReflection = ambient * vec4(vbs_ground_reflection, 1.0);
 
-	return MapLighting( 
+	return MapLighting(
 		diffuse,
 		ambient,
 		0.5 * (ambient + armaGroundReflection),
@@ -201,7 +201,7 @@ MapLighting getMapLighting()
 
 		case 1:
 			// Sun angle 2, overcast 0:
-			return MapLighting( 
+			return MapLighting(
 				vec4(0.95, 0.42, 0.22, 8.4),
 				vec4(0.306, 0.357, 0.463, 8.4),
 				vec4(0.365, 0.361, 0.396, 7.392),
@@ -211,12 +211,12 @@ MapLighting getMapLighting()
 
 		case 2:
 			// Sun angle -5, overcast 0:
-			return MapLighting( 
-				vec4(0.16, 0.18, 0.28, 3), 
-				vec4(0.173, 0.239, 0.373, 4.6), 
-				vec4(0.173, 0.239, 0.373, 4.048), 
-				vec4(0.173, 0.239, 0.373, 3.88608), 
-				vec3(0.0115, 0.012, 0.0125), 
+			return MapLighting(
+				vec4(0.16, 0.18, 0.28, 3),
+				vec4(0.173, 0.239, 0.373, 4.6),
+				vec4(0.173, 0.239, 0.373, 4.048),
+				vec4(0.173, 0.239, 0.373, 3.88608),
+				vec3(0.0115, 0.012, 0.0125),
 				6.0);
 
 		case 3:
@@ -309,7 +309,7 @@ vec3 environmentSample(vec3 world_reflection, SparseCoord tex_coord, float specu
 	float scaled_specular_power = 1.0 - clamp(
 		specular_exponent / maximum_specular_power, 0.0, 1.0);
 
-	float specular_power_lod = maximum_specular_power_mip * 
+	float specular_power_lod = maximum_specular_power_mip *
 		pow(scaled_specular_power, specular_power_to_mip_exponent);
 
 	vec2 sample_coordinates = 0.5 + vec2(0.5, 0.5) * world_reflection.xy;
@@ -342,8 +342,8 @@ float fresnelSample(float u)
 
 	float aa = sqrt(aa_squared);
 
-	float fs = 
-		(aa_squared + bb_squared - 2.0 * aa * u + pow(u, 2.0)) / 
+	float fs =
+		(aa_squared + bb_squared - 2.0 * aa * u + pow(u, 2.0)) /
 		(aa_squared + bb_squared + 2.0 * aa * u + pow(u, 2.0));
 
 	float fp = fs * (aa_squared + bb_squared - 2.0 * aa * sin(s) * tan(s) + sin_s_squared * pow(tan(s), 2.0)) /
@@ -392,42 +392,34 @@ vec3 applyReinhardTonemap(vec3 x)
 	return clamp(scale * x, 0.0, 1.0);
 }
 
-void shade(V2F inputs) 
+void shade(V2F inputs)
 {
-	vec3 tangent_base_normal = normalUnpack(textureSparse(base_normal_texture, inputs.sparse_coord), base_normal_y_coeff);
-	vec3 tangent_height_normal = normalFromHeight(inputs.sparse_coord, 1.0);
-	vec3 tangent_blended_normal = normalBlend(tangent_base_normal, tangent_height_normal);
-
-	vec3 world_normal = normalize(
-		tangent_blended_normal.x * inputs.tangent +
-		tangent_blended_normal.y * inputs.bitangent +
-		tangent_blended_normal.z * inputs.normal
-	);
+	vec3 normal = computeWSNormal(inputs.sparse_coord, inputs.tangent, inputs.bitangent, inputs.normal);
 
 	vec3 world_eye = normalize(uniform_world_eye_position - inputs.position);
 
-	vec3 world_reflection = reflect(-world_eye, world_normal);
+	vec3 world_reflection = reflect(-world_eye, normal);
 
 	float specular_channel = textureSparse(specularlevel_tex, inputs.sparse_coord).x;
 
-	float eye_incidence = dot(world_normal, world_reflection);
+	float eye_incidence = dot(normal, world_reflection);
 	float raw_fresnel = fresnelSample(eye_incidence);
 	float fresnel = specular_channel * raw_fresnel;
 
-	float ambient_gradient_direction = world_normal.y;
+	float ambient_gradient_direction = normal.y;
 
 	vec3 top_colour = mix(lighting.PSC_AmbientMid, lighting.PSC_AE, clamp(ambient_gradient_direction, 0.0, 1.0));
 	vec3 bottom_colour = mix(lighting.PSC_GE, lighting.PSC_AmbientMid, 1.0 + clamp(ambient_gradient_direction, -1.0, 0.0));
 
-	vec3 ambient_and_emissive = lighting.PSC_Emissive + mix(bottom_colour, top_colour, 
+	vec3 ambient_and_emissive = lighting.PSC_Emissive + mix(bottom_colour, top_colour,
 		sign(ambient_gradient_direction) * 0.5 + 0.5);
 
 	vec3 world_light = normalize(
 		vec3(cos(environment_rotation * M_2PI), 1, sin(environment_rotation * M_2PI)));
 	vec3 world_half = normalize(world_eye + world_light);
-	float normal_dot_light = dot(world_normal, world_light);
+	float normal_dot_light = dot(normal, world_light);
 
-	float normal_dot_half = dot(world_normal, world_half);
+	float normal_dot_half = dot(normal, world_half);
 
 	float specular_power_channel = textureSparse(glossiness_tex, inputs.sparse_coord).x;
 	float specular_exponent = specular_power_constant * specular_power_channel;
@@ -451,13 +443,12 @@ void shade(V2F inputs)
 	vec3 output_direct = lighting.PSC_DForced + lighting.PSC_Diffuse * diffuse_lit_coefficient * (1.0 - fresnel);
 	vec3 output_specular = lighting.PSC_Specular * specular_lit_coefficient * fresnel;
 	vec3 environment_value = environmentSample(world_reflection, inputs.sparse_coord, specular_exponent);
-	vec3 output_specular_environment = lighting.PSC_GlassMatSpecular * 2.0 * fresnel *
-		environment_value;
+	vec3 output_specular_environment = lighting.PSC_GlassMatSpecular * 2.0 * fresnel * environment_value;
 
-	vec3 base_sample = textureSparse(basecolor_tex, inputs.sparse_coord).xyz;
-	vec4 macro_sample =
-		macro_is_set ? textureSparse(macro_tex, inputs.sparse_coord) : vec4(0, 0, 0, 0);
-	float macro_alpha_sample = 
+	vec3 base_sample = textureSparse(diffuse_tex, inputs.sparse_coord).xyz;
+	vec4 macro_sample =	macro_is_set ? textureSparse(macro_tex, inputs.sparse_coord) : vec4(0, 0, 0, 0);
+
+	float macro_alpha_sample =
 		macro_alpha_is_set ? textureSparse(macro_alpha_tex, inputs.sparse_coord).x : 0.0;
 	vec3 detail_sample = detail_is_set ? textureSparse(detail_tex, inputs.sparse_coord).rgb : vec3(0.5, 0.5, 0.5);
 
@@ -468,7 +459,7 @@ void shade(V2F inputs)
 
 	vec3 non_specular_result = (output_indirect + output_direct * direct_shadow_channel) * output_colour;
 	vec3 specular_result = output_specular * direct_shadow_channel + output_specular_environment;
-	
+
 	vec3 material_result = non_specular_result + specular_result;
 
 	switch (preview_mode)
@@ -498,7 +489,7 @@ void shade(V2F inputs)
 			break;
 
 		case 6:
-			diffuseShadingOutput(world_normal);
+			diffuseShadingOutput(normal);
 			break;
 
 		case 7:
