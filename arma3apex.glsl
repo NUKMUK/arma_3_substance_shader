@@ -10,7 +10,7 @@
 // The channels used are:
 //
 //     Diffuse (_co) [sRGB]
-//     Normal (_nohq) [L]
+//     Normal/Height (_nohq) [L]
 //     Specular level (_smdi) [L]
 //     Glossiness (_smdi) [L]
 //     User0 (Ambient Occlusion, _as green channel, Optional) [L]
@@ -21,8 +21,12 @@
 //
 // The environment should also be set to a regular ARMA 3 environment map, not a third party HDR.
 
-import lib-defines.glsl
+import lib-alpha.glsl
+import lib-emissive.glsl
 import lib-env.glsl
+import lib-defines.glsl
+import lib-sampler.glsl
+import lib-vectors.glsl
 import lib-normal.glsl
 import lib-random.glsl
 
@@ -461,6 +465,10 @@ void shade(V2F inputs)
 	vec3 specular_result = output_specular * direct_shadow_channel + output_specular_environment;
 
 	vec3 material_result = non_specular_result + specular_result;
+
+	// Discard current fragment on the basis of the opacity channel
+  	// and a user defined threshold
+  	alphaKill(inputs.sparse_coord);
 
 	switch (preview_mode)
 	{
