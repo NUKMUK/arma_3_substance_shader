@@ -18,3 +18,7 @@ The environment should also be set to a regular ARMA 3 environment map, not a th
 
 Use the env_co image for your environment map. It can be found in ‪P:\a3\data_f\env_co.paa.
 You will need to convert the image into either a tga or png format.
+
+Here's a uniform example with the right rvmat/shader settings
+
+![GitHub uniform_test](/image/uniform_test.png)
