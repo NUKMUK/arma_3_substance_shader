@@ -297,7 +297,7 @@ LightingInputs lighting = getInputsFromMapLighting(getMapLighting());
 
 vec4 environmentSampleSelectedMap(vec2 sample_coordinates, float specular_power_lod)
 {
-	switch (1)
+	switch (environment_source)
 	{
 		case 0:
 			return vec4(textureLod(environment_texture, sample_coordinates, specular_power_lod).xyz, 1.0);
