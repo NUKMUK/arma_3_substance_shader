@@ -77,10 +77,13 @@ uniform float fresnel_n_constant;
 //: }
 uniform float fresnel_k_constant;
 
+//: param auto environment_rotation
+uniform float environment_rotation;
+
 //: param auto environment_max_lod
 uniform float environment_max_lod;
 
-//: param auto channel_specularlevel
+//: param auto channel_specular
 uniform SamplerSparse specularlevel_tex;
 
 //: param auto channel_glossiness
@@ -294,7 +297,7 @@ LightingInputs lighting = getInputsFromMapLighting(getMapLighting());
 
 vec4 environmentSampleSelectedMap(vec2 sample_coordinates, float specular_power_lod)
 {
-	switch (environment_source)
+	switch (1)
 	{
 		case 0:
 			return vec4(textureLod(environment_texture, sample_coordinates, specular_power_lod).xyz, 1.0);
@@ -444,10 +447,10 @@ void shade(V2F inputs)
 	vec3 output_indirect = unknown_ambient + (ambient_and_emissive + back_facing_diffuse) *
 		ambient_shadow_channel;
 
-	vec3 output_direct = lighting.PSC_DForced + lighting.PSC_Diffuse * diffuse_lit_coefficient * (1.0 - fresnel);
+	vec3 output_direct = lighting.PSC_DForced + lighting.PSC_Diffuse * diffuse_lit_coefficient * max((1.0 - fresnel), 0);
 	vec3 output_specular = lighting.PSC_Specular * specular_lit_coefficient * fresnel;
 	vec3 environment_value = environmentSample(world_reflection, inputs.sparse_coord, specular_exponent);
-	vec3 output_specular_environment = lighting.PSC_GlassMatSpecular * 2.0 * fresnel * environment_value;
+	vec3 output_specular_environment = lighting.PSC_GlassMatSpecular * 16.0 * fresnel * environment_value;
 
 	vec3 base_sample = textureSparse(diffuse_tex, inputs.sparse_coord).xyz;
 	vec4 macro_sample =	macro_is_set ? textureSparse(macro_tex, inputs.sparse_coord) : vec4(0, 0, 0, 0);
@@ -459,10 +462,10 @@ void shade(V2F inputs)
 	vec3 output_colour = mix(base_sample, macro_sample.rgb, macro_alpha_sample) * 2.0 * detail_sample;
 
 	float direct_shadow_channel =
-		ambient_shadow_blue_is_set ? textureSparse(ambient_shadow_blue_tex, inputs.sparse_coord).x : 1.0;
+		false ? textureSparse(ambient_shadow_blue_tex, inputs.sparse_coord).x : 1.0;
 
 	vec3 non_specular_result = (output_indirect + output_direct * direct_shadow_channel) * output_colour;
-	vec3 specular_result = output_specular * direct_shadow_channel + output_specular_environment;
+	vec3 specular_result = 8.0 * output_specular * direct_shadow_channel + output_specular_environment;
 
 	vec3 material_result = non_specular_result + specular_result;
 
